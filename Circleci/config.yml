@@ -1,0 +1,83 @@
+version: 2.1
+ 
+setup: true
+ 
+orbs:
+  continuation: circleci/continuation@0.4.0
+ 
+jobs:
+  # -----------------------------------
+  # Step 1: Continuation Setup Job
+  # -----------------------------------
+  detect-and-continue:
+    docker:
+      - image: cimg/python:3.10
+    steps:
+      - checkout
+ 
+      - continuation/continue:
+          configuration_path: .circleci/continue.yml
+ 
+  # ---------------------------------------------
+  # Step 2: Run Tests + Upload ONLY Changed Files
+  # ---------------------------------------------
+  run-tests-and-save-artifacts:
+    docker:
+      - image: cimg/python:3.10
+ 
+    steps:
+      - checkout
+ 
+      # ✅ Install dependencies
+      - run:
+          name: Install Dependencies
+          command: |
+            pip install -r requirements.txt
+            pip install pytest
+ 
+      # ✅ Capture ONLY changed files (exactly what you committed)
+      - run:
+          name: Collect Changed Files Only
+          command: |
+            echo "Fetching main branch..."
+            git fetch origin main
+ 
+            echo "Finding changed files..."
+            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+ 
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+ 
+            # Create folder to store only changed files
+            mkdir -p changed_files
+ 
+            # Copy only changed files into artifact folder
+            for file in $CHANGED_FILES; do
+              cp --parents "$file" changed_files/
+            done
+ 
+      # ✅ Run pytest and save logs
+      - run:
+          name: Run Tests and Save Logs
+          command: |
+            echo "Running pytest..."
+            pytest tests/ > pytest.log 2>&1 || true
+ 
+      # ✅ Upload pytest log artifact
+      - store_artifacts:
+          path: pytest.log
+          destination: pytest.log
+ 
+      # ✅ Upload ONLY changed files artifact
+      - store_artifacts:
+          path: changed_files
+          destination: changed_files
+ 
+workflows:
+  setup-workflow:
+    jobs:
+      - detect-and-continue
+ 
+      - run-tests-and-save-artifacts:
+          requires:
+            - detect-and-continue
