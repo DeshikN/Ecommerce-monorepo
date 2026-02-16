@@ -1,0 +1,15 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+      - run: echo "CircleCI working!"
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test
